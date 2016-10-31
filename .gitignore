@@ -1,0 +1,9 @@
+MakeFiles/
+build/
+*.bag
+*.csv
+*.pcd
+*.pcap
+*.exe
+*~
+core
