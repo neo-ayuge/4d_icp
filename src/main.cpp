@@ -22,7 +22,7 @@ int main(int argc, char** argv){
   //pretreatment
   pcl::PointCloud<pcl::PointXYZI>::Ptr circle_target (new pcl::PointCloud<pcl::PointXYZI>);
   pcl::PointCloud<pcl::PointXYZI>::Ptr circle_source (new pcl::PointCloud<pcl::PointXYZI>);
-  double max_range = 20.0; double max_intensity = 255.0;
+  double max_range = 130.0; double max_intensity = 255.0;
 
   test.setMaxRange(circle_target, target_cloud, max_range);
   test.setMaxRange(circle_source, source_cloud, max_range);
@@ -34,8 +34,12 @@ int main(int argc, char** argv){
   test.normalizePointCloud(normalized_source, circle_source, max_range, max_intensity);
   //pcl::io::savePCDFile("normalized.pcd", *normalized_target);
 
-  double threshold_dst = 0.0001;
-  test.estimateCorrespond(normalized_target, normalized_source, threshold_dst);
+  double threshold_dst = 0.01;
+  test.estimateCorrespond(normalized_target, normalized_source, threshold_dst, max_range);
+
+  test.estimateEpsilon(normalized_target, normalized_source);
+
+  test.estimateTransform(normalized_target, normalized_source);
 
   return 0;
 
