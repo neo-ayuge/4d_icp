@@ -88,36 +88,55 @@ void icp_4d::estimateCorrespond(pcl::PointCloud<pcl::PointXYZI>::Ptr target,
 								pcl::PointCloud<pcl::PointXYZI>::Ptr source,
 								double threshold_dst,
 								double max_range){
-  //clear correspond
-  // if(correspond_.size() != 0){
-  // 	correspond_.clear();
-  // 	correspond_.shrink_to_fit();
-  // }
 
   //create kdtree object
-  pcl::KdTreeFLANN<pcl::PointXYZI> kdtree;
-  kdtree.setInputCloud (target);
+  //pcl::KdTreeFLANN<pcl::PointXYZI> kdtree;
+  if(kdtree_.getInputCloud () == 0){
+	kdtree_.setInputCloud (target);
+	std::cerr << "kdtree_stored(1)" << std::endl;
+  }
+
+  //new_correspond
+  std::vector< std::pair<int, int> > new_correspond;
+
   int K = 1; //only nearest neighbor
   std::vector<int> pointIdxNKNSearch(K);
   std::vector<float> pointNKNSquaredDistance(K);
 
   for(int i = 0; i < source->size(); i++){
 	pcl::PointXYZI searchPoint(source->points[i]);
-	kdtree.nearestKSearch (searchPoint, K, pointIdxNKNSearch, pointNKNSquaredDistance);
+	kdtree_.nearestKSearch (searchPoint, K, pointIdxNKNSearch, pointNKNSquaredDistance);
 
 	double corr_dst;
 	corr_dst = sqrt( pow( (source->points[i].x - target->points[ pointIdxNKNSearch[0] ].x), 2) +
 					 pow( (source->points[i].y - target->points[ pointIdxNKNSearch[0] ].y), 2) +
 					 pow( (source->points[i].z - target->points[ pointIdxNKNSearch[0] ].z), 2) );
 
-	if( corr_dst < threshold_dst / (2*max_range) ){
+	if( corr_dst < threshold_dst / (2 * max_range) ){
 	  //add correspond(source, target)
 	  std::pair<int, int> cor(i, pointIdxNKNSearch[0]);
-	  correspond_.push_back(cor);
+	  new_correspond.push_back(cor);
 	}
   }
 
+  //check
+  if(correspond_.size() == 0){
+	num_of_new_point_ = new_correspond.size();
+	stability_ = new_correspond.size();
+	correspond_ = new_correspond;
+	error_value_ = icp_4d::estimateEpsilon(target, source);
+  }
+  else{
+	num_of_new_point_ = new_correspond.size() - correspond_.size(); 
+	stability_ = estimateStability(new_correspond, correspond_);
+	correspond_ = new_correspond;
+	error_value_ = icp_4d::estimateEpsilon(target, source);
+  }
+
   std::cerr << "estimate correspond done ... corr_size = " << correspond_.size() << std::endl;
+  std::cerr << " epsilon = " << error_value_ << std::endl;
+  std::cerr << " number of new associated points = " << num_of_new_point_ << std::endl;
+  std::cerr << " stability = " << stability_ << std::endl;
 }
 
 
@@ -137,8 +156,48 @@ double icp_4d::estimateEpsilon(pcl::PointCloud<pcl::PointXYZI>::Ptr target,
 	epsilon += corr_dst;
   }
   epsilon /= correspond_.size();
-  std::cerr << "estimate epsilon done ... epsilon=" << epsilon << std::endl;
+  //std::cerr << "estimate epsilon done ... epsilon=" << epsilon << std::endl;
   return epsilon;
+}
+
+
+int icp_4d::estimateStability(std::vector< std::pair<int, int> > new_correspond,
+							  std::vector< std::pair<int, int> > old_correspond){
+  int num_of_update = 0;
+  if(new_correspond.size() > old_correspond.size()){
+	int new_cor_id = 0;
+	for(int old_cor_id = 0; old_cor_id < old_correspond.size(); old_cor_id++){
+	  while(new_correspond.at(new_cor_id).first == old_correspond.at(old_cor_id).first){
+		new_cor_id++;
+	  }
+	  if(new_correspond.at(new_cor_id).first != old_correspond.at(old_cor_id).first)
+		num_of_update++;
+	}
+	num_of_update += (new_correspond.size() - old_correspond.size());
+  }
+
+  else if(new_correspond.size() == old_correspond.size()){
+	int new_cor_id = 0;
+	for(int old_cor_id = 0; old_cor_id < old_correspond.size(); old_cor_id++){
+	  if(new_correspond.at(new_cor_id).first != old_correspond.at(old_cor_id).first)
+		num_of_update++;
+	}
+  }
+
+  else if(new_correspond.size() < old_correspond.size()){
+	int old_cor_id = 0;
+	for(int new_cor_id = 0; new_cor_id < new_correspond.size(); new_cor_id++){
+	  while(new_correspond.at(new_cor_id).first == old_correspond.at(old_cor_id).first){
+		old_cor_id++;
+	  }
+	  if(new_correspond.at(new_cor_id).first != old_correspond.at(old_cor_id).first)
+		num_of_update++;
+	}
+	num_of_update += (old_correspond.size() - new_correspond.size());
+  }
+
+  std::cerr << "stability " << num_of_update << std::endl;
+  return num_of_update;
 }
 
 
@@ -198,6 +257,7 @@ void icp_4d::estimateTransform(pcl::PointCloud<pcl::PointXYZI>::Ptr target,
 	double szy_ = target_subtracted(2) * source_subtracted(1); Szy += szy_;
 	double szz_ = target_subtracted(2) * source_subtracted(2); Szz += szz_;
   }
+
   //devide
   Sxx /= correspond_.size(); Sxy /= correspond_.size(); Sxz /= correspond_.size();
   Syx /= correspond_.size(); Syy /= correspond_.size(); Syz /= correspond_.size();
@@ -227,21 +287,53 @@ void icp_4d::estimateTransform(pcl::PointCloud<pcl::PointXYZI>::Ptr target,
 			<< rotation_guess_.matrix() << std::endl;
   std::cerr << "translation: " << std::endl
 			<< translate_guess_ << std::endl;
-
+  transform_guess_.block(0, 0, 3, 3) = rotation_guess_;
+  transform_guess_.block(0, 3, 3, 1) = translate_guess_;
+  transform_guess_(3, 0) = transform_guess_(3, 1) = transform_guess_(3, 2) = 0;
+  transform_guess_(3, 3) = 1;
+  std::cerr << "transform: " << std::endl
+			<< transform_guess_ << std::endl;
 }
 
 
-
-void icp_4d::applyICP(pcl::PointCloud<pcl::PointXYZI>::Ptr target, 
-					  pcl::PointCloud<pcl::PointXYZI>::Ptr source,
-					  double max_range,
+void icp_4d::applyICP(double max_range,
 					  double max_intensity,
-					  double threshold_dst){
+					  double threshold_radius,
+					  Eigen::Matrix4f init_guess){
 
+  if(target_cloud_->size() == 0 || source_cloud_->size() == 0){
+	std::cerr << "[apply ICP] no data!" << std::endl;
+	exit(-1);
+  }
 
+  std::cerr << "target size: " << target_cloud_->size() << std::endl;  
+  std::cerr << "source size: " << source_cloud_->size() << std::endl;
 
+  //initialize 
+  error_value_ = FLT_MAX;
+  num_of_new_point_ = INT_MAX;
+  stability_ = INT_MAX;
+  pcl::PointCloud<pcl::PointXYZI>::Ptr source_transform (new pcl::PointCloud<pcl::PointXYZI>);
+  pcl::transformPointCloud (*source_cloud_, *source_transform, init_guess);
 
+  //pretreatment
+  pcl::PointCloud<pcl::PointXYZI>::Ptr circle_target (new pcl::PointCloud<pcl::PointXYZI>);
+  pcl::PointCloud<pcl::PointXYZI>::Ptr circle_source (new pcl::PointCloud<pcl::PointXYZI>);
+  icp_4d::setMaxRange(circle_target, target_cloud_, max_range);
+  icp_4d::setMaxRange(circle_source, source_transform, max_range);
 
-
-
+  pcl::PointCloud<pcl::PointXYZI>::Ptr normalized_target (new pcl::PointCloud<pcl::PointXYZI>);
+  pcl::PointCloud<pcl::PointXYZI>::Ptr normalized_source (new pcl::PointCloud<pcl::PointXYZI>);
+  icp_4d::normalizePointCloud(normalized_target, circle_target, max_range, max_intensity);
+  icp_4d::normalizePointCloud(normalized_source, circle_source, max_range, max_intensity);
+  
+  int i = 0;
+  while(i != 30){
+	//
+	icp_4d::estimateCorrespond(normalized_target, normalized_source, threshold_radius, max_range);
+	icp_4d::estimateTransform(normalized_target, normalized_source);
+	//normalized_source update
+	pcl::transformPointCloud (*normalized_source, *normalized_source, transform_guess_);
+	i++;
+  }
 }

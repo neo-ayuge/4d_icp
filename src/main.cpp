@@ -19,27 +19,19 @@ int main(int argc, char** argv){
   test.setTarget(target_cloud);
   test.setSource(source_cloud);
 
-  //pretreatment
-  pcl::PointCloud<pcl::PointXYZI>::Ptr circle_target (new pcl::PointCloud<pcl::PointXYZI>);
-  pcl::PointCloud<pcl::PointXYZI>::Ptr circle_source (new pcl::PointCloud<pcl::PointXYZI>);
-  double max_range = 130.0; double max_intensity = 255.0;
+  Eigen::AngleAxisf init_rotation (0.0, Eigen::Vector3f::UnitZ ());
+  Eigen::Translation3f init_translation (0.0, 0.0, 0.0);
+  Eigen::Matrix4f init_guess = (init_translation * init_rotation).matrix ();
+  
+  double max_range = 100.0;
+  double max_intensity = 255.0;
+  double threshold_radius = 0.1;
 
-  test.setMaxRange(circle_target, target_cloud, max_range);
-  test.setMaxRange(circle_source, source_cloud, max_range);
-  //pcl::io::savePCDFile("circle.pcd", *circle_target);
+  test.applyICP(max_range, max_intensity, threshold_radius, init_guess);
 
-  pcl::PointCloud<pcl::PointXYZI>::Ptr normalized_target (new pcl::PointCloud<pcl::PointXYZI>);
-  pcl::PointCloud<pcl::PointXYZI>::Ptr normalized_source (new pcl::PointCloud<pcl::PointXYZI>);
-  test.normalizePointCloud(normalized_target, circle_target, max_range, max_intensity);
-  test.normalizePointCloud(normalized_source, circle_source, max_range, max_intensity);
-  //pcl::io::savePCDFile("normalized.pcd", *normalized_target);
-
-  double threshold_dst = 0.01;
-  test.estimateCorrespond(normalized_target, normalized_source, threshold_dst, max_range);
-
-  test.estimateEpsilon(normalized_target, normalized_source);
-
-  test.estimateTransform(normalized_target, normalized_source);
+  //test.estimateCorrespond(normalized_target, normalized_source, threshold_dst, max_range);
+  //test.estimateEpsilon(normalized_target, normalized_source);
+  //test.estimateTransform(normalized_target, normalized_source);
 
   return 0;
 
