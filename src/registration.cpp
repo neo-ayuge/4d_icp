@@ -110,9 +110,11 @@ void icp_4d::estimateCorrespond(pcl::PointCloud<pcl::PointXYZI>::Ptr target,
 	double corr_dst;
 	corr_dst = sqrt( pow( (source->points[i].x - target->points[ pointIdxNKNSearch[0] ].x), 2) +
 					 pow( (source->points[i].y - target->points[ pointIdxNKNSearch[0] ].y), 2) +
-					 pow( (source->points[i].z - target->points[ pointIdxNKNSearch[0] ].z), 2) );
+					 pow( (source->points[i].z - target->points[ pointIdxNKNSearch[0] ].z), 2) +
+					 pow( (source->points[i].intensity - target->points[ pointIdxNKNSearch[0] ].intensity), 2));
 
 	if( corr_dst < threshold_dst / (2 * max_range) ){
+	  //if( corr_dst < threshold_dst){
 	  //add correspond(source, target)
 	  std::pair<int, int> cor(i, pointIdxNKNSearch[0]);
 	  new_correspond.push_back(cor);
@@ -327,13 +329,61 @@ void icp_4d::applyICP(double max_range,
   icp_4d::normalizePointCloud(normalized_target, circle_target, max_range, max_intensity);
   icp_4d::normalizePointCloud(normalized_source, circle_source, max_range, max_intensity);
   
+  boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer (new pcl::visualization::PCLVisualizer ("3D Viewer"));
+  viewer->setBackgroundColor (0, 0, 0);
+  viewer->addCoordinateSystem (1.0);
+  viewer->initCameraParameters ();
+
   int i = 0;
-  while(i != 30){
+  while(i != 100){
 	//
 	icp_4d::estimateCorrespond(normalized_target, normalized_source, threshold_radius, max_range);
 	icp_4d::estimateTransform(normalized_target, normalized_source);
 	//normalized_source update
 	pcl::transformPointCloud (*normalized_source, *normalized_source, transform_guess_);
+
+	//
+	// icp_4d::estimateCorrespond(circle_target, circle_source, threshold_radius, max_range);
+	// icp_4d::estimateTransform(circle_target, circle_source);
+	// //normalized_source update
+	// pcl::transformPointCloud (*circle_source, *circle_source, transform_guess_);
 	i++;
+
+	if(i == 99){
+	  pcl::visualization::PointCloudColorHandlerGenericField<pcl::PointXYZI> intensity1(normalized_target, "intensity");
+	  pcl::visualization::PointCloudColorHandlerGenericField<pcl::PointXYZI> intensity2(normalized_source, "intensity");
+	  
+	  if( !viewer->updatePointCloud (normalized_target, intensity1, "target cloud") ){
+		viewer->addPointCloud<pcl::PointXYZI> (normalized_target, intensity1, "target cloud");
+	  }
+	  
+	  Eigen::AngleAxisf init_rotation (0.0, Eigen::Vector3f::UnitZ ());
+	  Eigen::Translation3f init_translation (2.5, 0.0, 0.0);
+	  Eigen::Matrix4f init_guess = (init_translation * init_rotation).matrix ();
+	  pcl::PointCloud<pcl::PointXYZI>::Ptr source_for_viz(new pcl::PointCloud<pcl::PointXYZI>);
+	  pcl::transformPointCloud (*normalized_source, *source_for_viz, init_guess);
+	  
+	  if( !viewer->updatePointCloud (source_for_viz, intensity2, "input cloud") ){
+		viewer->addPointCloud<pcl::PointXYZI> (source_for_viz, intensity2, "input cloud");
+	  }
+	  
+	  for(int n = 0; n < correspond_.size(); n++){
+		std::stringstream line_id;
+		line_id << "line_" << i << "_" << n;
+		viewer->addLine<pcl::PointXYZI> (source_for_viz->points[ correspond_.at(n).first ],
+										 normalized_target->points[ correspond_.at(n).second ],
+										 1.0,
+										 0.0,
+										 0.0,
+										 line_id.str());
+		if(n > 500){
+		  break;
+		}
+	  }
+	  while(!viewer->wasStopped ()){	  
+		viewer->spinOnce (100);
+		boost::this_thread::sleep (boost::posix_time::microseconds (100000));
+	  }
+	}
   }
 }

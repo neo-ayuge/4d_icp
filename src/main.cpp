@@ -25,7 +25,7 @@ int main(int argc, char** argv){
   
   double max_range = 100.0;
   double max_intensity = 255.0;
-  double threshold_radius = 0.1;
+  double threshold_radius = 0.2;
 
   test.applyICP(max_range, max_intensity, threshold_radius, init_guess);
 

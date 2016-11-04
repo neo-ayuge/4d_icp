@@ -3,6 +3,9 @@
 #include <pcl/registration/ndt.h>
 #include <cmath>
 #include <float.h>
+#include <sstream>
+#include <pcl/visualization/pcl_visualizer.h>
+#include <pcl/visualization/point_cloud_color_handlers.h>
 
 class icp_4d{
   //member-----------------------------------
@@ -59,6 +62,7 @@ class icp_4d{
   				double max_intensity,
   				double threshold_radius,
 				Eigen::Matrix4f init_guess);
+
 };
 
 
