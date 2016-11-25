@@ -21,5 +21,5 @@ add_definitions(
 set(CMAKE_BUILD_TYPE Debug)
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O1")
 
-add_executable(4dicp src/main.cpp src/registration.cpp)
+add_executable(4dicp src/main.cpp src/registration.cpp src/kdtree.cpp)
 target_link_libraries(4dicp ${PCL_LIBRARIES} ${OpenCV_LIBS})
