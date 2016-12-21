@@ -2,7 +2,8 @@ MakeFiles/
 build/
 *.bag
 *.csv
-*.pcd
+# *.pcd
+# !data/bunny.pcd
 *.pcap
 *.exe
 *~

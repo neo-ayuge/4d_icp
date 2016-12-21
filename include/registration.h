@@ -1,7 +1,10 @@
 #include <pcl/point_types.h>
 #include <pcl/kdtree/kdtree_flann.h>
 #include <pcl/registration/ndt.h>
+#include <pcl/registration/transforms.h>
 #include <cmath>
+#include <ctime>
+#include <algorithm> 
 #include <float.h>
 #include <sstream>
 #include <pcl/visualization/pcl_visualizer.h>
@@ -11,7 +14,9 @@ class icp_4d{
   //member-----------------------------------
   pcl::PointCloud<pcl::PointXYZI>::Ptr target_cloud_;
   pcl::PointCloud<pcl::PointXYZI>::Ptr source_cloud_;
-  pcl::KdTreeFLANN<pcl::PointXYZI> kdtree_;
+  //kdtree *tree;
+  pcl::KdTreeFLANN<pcl::PointXYZI> kdtree_; //Not fully functional
+
   std::vector< std::pair<int, int> > correspond_;
   Eigen::Matrix4f transform_guess_;
   Eigen::Vector3f translate_guess_;
@@ -34,6 +39,10 @@ class icp_4d{
   //getter
   pcl::PointCloud<pcl::PointXYZI>::Ptr getTarget();
   pcl::PointCloud<pcl::PointXYZI>::Ptr getSource();
+  std::vector< std::pair<int, int> > getCorrespond();
+  Eigen::Matrix4f getTransformation();
+  double getEpsilon();
+  int getNumberOfNewCorrespond();
 
   void setMaxRange(pcl::PointCloud<pcl::PointXYZI>::Ptr output,
 				   pcl::PointCloud<pcl::PointXYZI>::ConstPtr source, 
@@ -46,9 +55,13 @@ class icp_4d{
 
   void estimateCorrespond(pcl::PointCloud<pcl::PointXYZI>::Ptr target, 
 						  pcl::PointCloud<pcl::PointXYZI>::Ptr source,
-						  double threshold_dst,
-						  double max_range);
+						  double threshold_dst);
 
+  void estimateCorrespond_4d(pcl::PointCloud<pcl::PointXYZI>::Ptr target, 
+							 pcl::PointCloud<pcl::PointXYZI>::Ptr source,
+							 double intensity_scale,
+							 double threshold_dst);
+  
   double estimateEpsilon(pcl::PointCloud<pcl::PointXYZI>::Ptr target, 
 						 pcl::PointCloud<pcl::PointXYZI>::Ptr source);
 
@@ -57,6 +70,9 @@ class icp_4d{
 
   void estimateTransform(pcl::PointCloud<pcl::PointXYZI>::Ptr target, 
 						 pcl::PointCloud<pcl::PointXYZI>::Ptr source);
+
+  void applyFastICP(pcl::PointCloud<pcl::PointXYZI>::Ptr target, 
+					pcl::PointCloud<pcl::PointXYZI>::Ptr source);
 
   void applyICP(double max_range,
   				double max_intensity,
